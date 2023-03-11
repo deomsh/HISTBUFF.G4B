@@ -1,7 +1,7 @@
 HISTBUFF.G4B v0.1 (20230411)
 Grub4dos script to view, export, import and manipulate History Buffer (on grub4efi too)
 
-USE: HISTBUFF.G4B
+Use: HISTBUFF.G4B
 
 Main menu:
 V to view number of History entries and view the full History Buffer
