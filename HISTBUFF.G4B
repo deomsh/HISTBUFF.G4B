@@ -729,7 +729,7 @@ echo I to import a History Buffer from file (earlier saved - .KBC only)
 echo F to reverse order of all entries in the History Buffer and view changes
 echo C to convert all valid entries in the History Buffer to text and export to file
 echo K to get more information about the History Buffer
-echo Q to quit HISTBUF.G4B or restore History Buffer if wanted (after changes) && echo
+echo Q to quit HISTBUFF.G4B or restore History Buffer if wanted (after changes) && echo
 echo All Sub-menu's should be self-explaining or will provide instructions for use && echo
 goto :eof
 
