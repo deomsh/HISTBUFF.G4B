@@ -1,1 +1,739 @@
+!BAT
+## HISTBUFF.G4B v0.1 (20230311), by deomsh
+setlocal
+debug 1
+debug msg=0
+set message= && set message1= && set message2=
+if not exist @uefi && call :NHistory && set CMDLADDR=0x3E9200 && set HISTADDR=0x3EA4C0 && set HISTBUFF=0x1F40 && set /A HISTEND=0x3EA4C0+0X1F40-1 && set /A HISTLAST=0x3EA4C0+0X1F40-4 && set SECT=0x1F63 && set BACKSECT=16
+if exist @uefi && call :NHistG4E &; set /A HISTEND=%HISTADDR%+%HISTBUFF%-1 && set /A HISTLAST=%HISTADDR%+%HISTBUFF%-4 && set BACKSECT=32
+if not %numhist%>=1 && endlocal && echo num_hist not found && goto :eov
+set /A mdbase=0x3000
+set /A hist3sec=3 * %HISTBUFF%
+echo -n > (md)%mdbase%+%hist3sec%
+call :exp2mem
+clear
+call :header "HISTBUFF.G4B"
+call :minihelp
+:start
+call Fn.5 0 0
+set key=zyx && set keycode=
+echo -e -n $[0x0F]V$[0x07]iew $[0x0F]G$[0x07]rub $[0x0F]N$[0x07]umhist $[0x0F]T$[0x07]est $[0x0F]W$[0x07]rite $[0x0F]S$[0x07]ync $[0x0F]D$[0x07]elete $[0x0F]E$[0x07]xport $[0x0F]I$[0x07]mport $[0x0F]F$[0x07]ifo $[0x0F]C$[0x07]onvert $[0x0F]K$[0x07]now $[0x0F]Q$[0x07]uit$[0x00] && pause --wait=180 --test-key &; set /A keycode=%@retval% &; call :keycodes "%keycode%" "key"
+pager off
+if %key%==zyx && echo && set key=V
+if %key%==V && echo && call :view &; call :minihelp
+if %key%==G && echo && call :cmdlinebuff &; call :minihelp
+if %key%==S && echo && call :cleanbuf
+if %key%==D && echo && call :delbuff
+if %key%==I && echo && call :import
+if %key%==E && echo && call :export
+if %key%==F && echo && call :fifo
+if %key%==N && echo && call :num_hist
+if %key%==T && echo && call :test
+if %key%==W && echo && call :write &; call :header "WRITE"
+if %key%==C && echo && call :convert
+if %key%==K && echo && set message= &; call :know
+if %key%==Q && call :mem2HBuf &; if not %mode%==M && if not %mode%==R && echo -n > (md)%mdbase%+%hist3sec% && goto :eov
+if %key%==Q && if %mode%==M && clear && call :minihelp
+if %key%==Q && if %mode%==R && clear && call :minihelp && set message=
+goto :start
 
+:view
+if not "%~1"=="" && set mode=%~1
+if "%~1"=="" && set mode=VIEW
+clear
+pager on
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "%mode%"
+setlocal
+set histroom=
+if exist NHistory && echo Location of num_history: && echo && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+%SECT% && echo
+raw read %NHistory% > nul &; set /a numhist=%@retval% &; echo num_history is %numhist% entries && echo
+cat --skip=%HISTLAST% --locate=\x00\x00\x00\x00 --length=0x4 (md)0x0+%SECT% > nul &; set /a histroom=%?%
+if not %histroom%>=1 && set /a numhist=%numhist% &; echo History Buffer is full! && echo
+echo Start of History Buffer
+cat --hex --skip=%HISTADDR% --length=%HISTBUFF% (md)0x0+%SECT%
+echo && echo After History Buffer
+set /A HISTAFTR=%HISTADDR% + %HISTBUFF%
+cat --hex --skip=%HISTAFTR% --length=0x20 (md)0x0+%SECT%
+echo -n $[0xF0]Press a key to continue && pause --wait=180
+endlocal
+clear
+goto :eof
+
+:cmdlinebuff
+if not "%~1"=="" && set mode=%~1
+if "%~1"=="" && set mode=VIEW
+clear
+pager on
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "%mode%"
+echo Command-line Buffer
+cat --hex --skip=%CMDLADDR% --length=1536 (md)0x0+%SECT% && echo
+echo -n $[0xF0]Press a key to continue && pause --wait=180
+clear
+goto :eof
+
+:cleanbuf
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+if not "%~1"=="" && set mode=%~1
+if "%~1"=="" && set mode=clean
+if not %mode%==import && clear
+if not %mode%==import && call Fn.5 0 0
+if not %mode%==import && echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+if %mode%==clean && call :header "SYNC"
+if %mode%==cleanfifo && call :header "FIFO"
+if %mode%==export && call :header "EXPORT"
+call :checkbuf "clean" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+set entrylen=0x0
+raw read %skip% &; set /A entrylen=%@retval% &; set /A entrylen=0x%entrylen:~-4,4%
+echo Last valid entry in the History Buffer at %skip% with length %entrylen% bytes
+set /A skipfree=%skip%+%entrylen%
+set /A bufftail=%skipfree%-%HISTADDR%
+set /A bufftail=%HISTBUFF%-%bufftail% &; if not %bufftail%>=0 && set bufftail=0x0
+if %bufftail%>=0x1 && set /a freeroom=%bufftail%
+if %bufftail%==0x0 && echo No free space in History Buffer && echo
+set view=0x0
+raw read %HISTLAST% &; set /A view=%@retval%
+if %mode%==export && set view=0x0
+if %bufftail%>=0x1 && if %view%>=0x1 && echo && echo End of the the History Buffer at %HISTEND% before cleaning: && set /A LASTVIEW=%HISTEND%+1-0x30
+if %bufftail%>=0x1 && if %view%>=0x1 && cat --hex --skip=%LASTVIEW% --length=0x30 (md)0x0+%SECT%
+if %bufftail%>=0x1 && if %view%>=0x1 && echo -------------------------------------------------------------------------------
+if %skipfree%<=%HISTEND% && if %bufftail%>=0x1 && call Fn.24 %skipfree% 0x00 %bufftail%
+if %bufftail%>=0x1 && if %view%>=0x1 && cat --hex --skip=%LASTVIEW% --length=0x30 (md)0x0+%SECT%
+if %bufftail%>=0x1 && if %view%>=0x1 && echo End of the the History Buffer at %HISTEND% after cleaning && echo
+if %bufftail%>=0x1 && echo Unused space in History Buffer: %freeroom% bytes
+raw read %NHistory% > nul &; set /A num_hist=%@retval% &; set /a numhist=%num_hist%
+if %num_hist%==%numentry% && raw read %NHistory% > nul &; set /a numhist=%@retval% &; if %mode%==clean && echo num_history has not been changed: %numhist% entries after cleaning && echo
+if not %num_hist%==%numentry% && raw write %NHistory% %numentry% &; raw read %NHistory% > nul &; if %mode%==clean && set /a numhist=%@retval% &; echo num_history has been changed to %numhist% entries after cleaning && echo
+endlocal && set numhist=%numhist%
+goto :eof
+
+:checkbuf
+## All variable: call :checkbuf "clean" "md" "mdmem" "mdsect" "skip" "length" "address"
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT% && set fifoseek=%fifoseek%
+if not "%~1"=="" && set mode=%~1
+if not "%~2"=="" && set FILE=%~2
+if not "%~3"=="" && set mdmem=%~3
+if not "%~4"=="" && set mdsect=%~4
+if not "%~5"=="" && set /A skip0=%~5
+if not "%~6"=="" && set /A length0=%~6
+if not "%~7"=="" && set /A address=%~7
+cat --skip=%skip0% --locate=\x00 --length=%length0% %FILE%%%mdmem%+%mdsect% > nul &; set /a numzero=%@retval%
+if %mode%==clean && if %numzero%==0 && endlocal && echo $[0x0F]Abort:$[0x07] History Buffer can not be processed! && goto:eof
+set entrylen=0x0 && set entryoke=0 && set numzero=
+set /A skip=%skip0%
+set entrylen=0x0 && set entryoke=0 && set numzero= && set numentry=0
+if %mode%==cnvHB2txt && set textseek=0x0
+:skiploop
+raw read %skip% &; set /A entrylen=%@retval% &; set entrylen=0x%entrylen:~-4,4%
+if %mode%==clean && if %entrylen%==0x0 && if %skip%==%skip0% && echo && echo History Buffer is empty! && endlocal && goto :eof
+if %entrylen%>=0x3 && cat --skip=%skip% --locate=\x00 --length=%entrylen% %FILE%%%mdmem%+%mdsect% > nul &; set /a entryoke=%@retval%
+set /A fulentry=%skip%+%entrylen%-0x1
+if not %entrylen%==0x0 && if %fulentry%<=%address% && set /A numentry=%numentry%+0x1
+if not %skip%<=%address% && set skipdiff=0x0
+if not %fulentry%<=%address% && set skipdiff=0x0
+if %entryoke%==0 && set skipdiff=0x0
+if %mode%==cnvHB2txt && if not %skipdiff%==0x0 && call :cnvHBtxt
+if %mode%==fifoHBuf && if not %skipdiff%==0x0 && call :fifoHBuf
+if not %skipdiff%==0x0 && set /A oldskip=%skip% && set /A skip=%skip%+%entrylen% && set entryoke=0 && set entrylen=0x0 && goto :skiploop
+if not %fulentry%<=%address% && set /A lastskip=%skip% && set /A skip=%oldskip%
+set /A lastskip=%skip%
+if %entrylen%==0x0 && set /A skip=%oldskip%
+endlocal && set skip=%skip% && set numentry=%numentry%
+goto :eof
+
+:delbuff
+if not "%~1"=="" && set mode=%~1
+if "%~1"=="" && set mode=DELETE
+if not %mode%==import && clear
+if not %mode%==import && call Fn.5 0 0
+if not %mode%==import && echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+if not %mode%==import && call :header "%mode%"
+raw write --offset=%NHistory% --bytes=4 (md)0x0+%SECT% \x00\x00\x00\x00 > nul
+if not %mode%==import && echo num_history set to zero && echo
+if not %mode%==import && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+%SECT% && echo
+if not %mode%==import && echo Start of History Buffer
+if not %mode%==import && cat --hex --skip=%HISTADDR% --length=0x30 (md)0x0+%SECT%
+if not %mode%==import && echo ------------------------------------------------------------------------------
+call Fn.24 %HISTADDR% 0x00 %HISTBUFF%
+if not %mode%==import && cat --hex --skip=%HISTADDR% --length=0x30 (md)0x0+%SECT%
+goto :eof
+
+:convert
+## Uses sub-routine indirectly ':cnvHBtxt' if ':checkbuf' is called with mode "cnvHB2txt"
+clear
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+call :checkbuf "clean" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+if %numentry%==0 && echo $[0x0F]Abort:$[0x07] History Buffer is empty && goto :eof
+echo - n > (md)%mdbase%+%BACKSECT%
+call :checkbuf "cnvHB2txt" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+if %numentry%==0 && echo $[0x0F]Abort:$[0x07] Conversion History Buffer to Text not possible && endlocal && goto :eof
+cat --locate=\x00 --replace=\x0A --number=%numentry% (md)%mdbase%+%BACKSECT% > nul
+cat --locate=\x0A (md)%mdbase%+%BACKSECT% > nul &; set /a size=%?%+1
+call :export "cnvHB2txt" "%size%"
+endlocal
+goto :eof
+
+:cnvHBtxt
+set /A skipentry=%skip%+0x2 && set /A textlen=%entrylen%-0x2
+raw dd if=(md)0x0+%SECT% of=(md)%mdbase%+%BACKSECT% bs=1 count=%textlen% skip=%skipentry% seek=%textseek% > nul &; set /a success=%@retval%
+set /A textseek=%textseek%+%textlen%
+goto :eof
+
+:import
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "IMPORT"
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+set source=zyx && set filesize= && set success=0
+echo Give Device/Path/Filename (extension: $[0x0F].KBC$[0x07] only!) to import History Buffer from file. Or give $[0x0F]Enter$[0x07] only to go back
+set /p "source= > " && echo && echo
+if "%source%"=="zyx" && echo && endlocal && goto :eof
+if not /i "%source:~-4,4%"==".kbc" && echo Wrong extension! && echo && endlocal && goto :eof
+if not exist %source% && echo %source% does not exist! && echo && endlocal && goto :eof 
+if exist source && if exist @uefi && if "%source:~0,1%"=="/" && set source=%@root%/%source:~1%
+cat --length=0 %source% > nul &; set /a filesize=%@retval%
+if not %filesize%>=%HISTBUFF% && echo %source% is not %HISTBUFF% bytes! && echo && endlocal && goto :eof
+call Fn.4 &; set /a cursor=%@retval% &; set /a cursor=%cursor%/256
+call :header "IMPORT %source%"
+call Fn.5 0 %cursor%
+echo Import %source% and replace the actual History Buffer?
+set key= && set keycode= && echo $[0x0F]M$[0x07]enu$[0x07]=Enter $[0x0F]N$[0x07]o $[0x0F]Y$[0x07]es && pause --wait=180 --test-key &; set /A keycode=%@retval% &; call :keycodes "%keycode%" "key" && echo
+if %key%==zyx && echo && set key=M
+if %key%==N && set key=M
+if not %key%==Y && echo && echo $[0x0F]Abort:$[0x07] %source% not imported && endlocal && goto :eof
+echo - n > (md)%mdbase%+%BACKSECT%
+raw dd if=%source% of=(md)%mdbase%+%BACKSECT% bs=1 count=%HISTBUFF% > nul &; set /a success=%@retval%
+if %success%==0 && echo Read %source% failed! && echo && endlocal && goto :eof
+set /A MEMADDR0=%mdbase% * 0x200
+set /A MEMEND0=%MEMADDR0%+%HISTBUFF%
+set /A mdbase1=%mdbase%+%BACKSECT%
+call :checkbuf "import" "(md)" "0x0" "%mdbase1%" "%MEMADDR0%" "%HISTBUFF%" "%MEMEND0%"
+if %numentry%==0 && echo $[0x0F]Abort:$[0x07] file %source% is not a valid .KBC-file && endlocal && goto :eof
+if %success%==1 && call :delbuff "import"
+set success=0
+raw dd if=(md)%mdbase%+%BACKSECT% of=(md)0x0+%SECT% bs=1 count=%HISTBUFF% skip=0x0 seek=%HISTADDR% > nul &; set /a success=%@retval%
+if %success%==0 && set "message=Write %source% to keyboard buffer failed!"
+if %success%==1 && call :cleanbuf "import"
+call Fn.4 &; set /a cursor=%@retval% &; set /a cursor=%cursor%/256
+call :header "IMPORT %source%"
+call Fn.5 0 %cursor%
+if %success%==1 && echo && echo Importing History buffer from %source% succeeded!
+if %success%==1 && set /a numentry=%numentry% &; echo && echo Imported History Buffer has %numentry% entries && echo
+if %success%==1 && set "message=Importing History buffer from %source% succeeded!"
+if %success%==1 && echo Start of History Buffer && cat --hex --length=0x30 %source%
+endlocal
+goto :eof
+
+:export
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+echo
+setlocal 
+if not "%~1"=="" && set mode=%~1
+if not "%~2"=="" && set /a size=%~2 &; if not %size%<=%HISTBUFF% && set size=%HISTBUFF%
+if "%~1"=="" && set mode=export
+if "%~2"=="" && set size=%HISTBUFF%
+if %mode%==cnvHB2txt && call :header "CONVERT"
+if %mode%==export && call :checkbuf "clean" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+if %mode%==export && if %numentry%==0 && echo $[0x0F]Abort:$[0x07] History Buffer is empty && goto :eof
+if %mode%==export && call :cleanbuf "export"
+if %mode%==export && echo -n > (md)%mdbase%+%BACKSECT%
+if %mode%==export && set success=0 && raw dd if=(md)0x0+%SECT% of=(md)%mdbase%+%BACKSECT% bs=1 count=%HISTBUFF% skip=%HISTADDR% seek=0x0 > nul &; set /a success=%@retval%
+set target=zyx && set success=0
+if %mode%==export && echo Give Device/Path/Filename (extension $[0x0F].KBC$[0x07] only) to write History Buffer to file && echo Give $[0x0F]Enter$[0x07] only to go back
+if %mode%==cnvHB2txt && echo Give Device/Path/Filename to export History Buffer as text && echo Give $[0x0F]Enter$[0x07] only to go back
+## Uppercase *somehow* not working?
+set /p "target= > " && echo && echo
+if "%target%"=="zyx" && echo && endlocal && goto :eof
+if %mode%==export && if not /i "%target:~-4,4%"==".kbc" && echo Wrong extension! && echo && endlocal && goto :eof
+if exist target && if exist @uefi && if "%target:~0,1%"=="/" && set target=%@root%/%target:~1%
+if exist %target% && cat --length=0 %target% > nul &; set /a filesize=%@retval%
+if %mode%==export && if exist %target% && if not %filesize%>=%HISTBUFF% && echo Filesize of %target% is %filesize% Bytes: not >=%HISTBUFF%! && echo && endlocal && goto :eof
+if %mode%==export && if exist %target% && if not %filesize%<=261632 && echo Filesize of %target% is %filesize% Bytes: >=261632 Bytes! && echo && endlocal && goto :eof
+call :fatonly "%target%"
+errorcheck off
+if %device%==N && endlocal && goto :eof
+if not %path%==/ && ls %device%%%path:~-1% > nul || echo Path does not exist && goto :eof
+call Fn.4 &; set /a cursor=%@retval% &; set /a cursor=%cursor%/256
+if %mode%==export && call :header "EXPORT TO %target%"
+if %mode%==cnvHB2txt && call :header "CONVERT TO TEXT AND EXPORT TO %target%"
+call Fn.5 0 %cursor%
+if %fatonly%==1 && echo %device% is a valid FAT-device ! echo %device% is not a valid FAT-device
+if exist %target% && if %filesize%>=%size% && echo -n %target% exists, overwrite? && if %fatonly%==1 && echo -e \x20Or create a new file (FAT only!)
+if %fatonly%==1 && if not exist %target% && echo %target% does not exist, create? (FAT only!)
+if exist %target% && if not %filesize%>=%size% && echo %target% is %filesize% bytes, needed: %size% bytes! && if %fatonly%==1 && echo Create a new file (FAT only!)
+if %filesize%>=%size% if exist %target% || if %fatonly%==1 && set key= && set keycode= && echo -n $[0x0F]M$[0x07]enu$[0x07](Enter=Menu) $[0x0F]C$[0x07]reate && pause --wait=180 --test-key &; set /A keycode=%@retval% && echo
+if %filesize%>=%size% && if %fatonly%==1 && if exist %target% && set key= && set keycode= &; echo -n $[0x0F]M$[0x07]enu$[0x07](Enter=Menu) $[0x0F]O$[0x07]verwrite $[0x0F]C$[0x07]reate && pause --wait=180 --test-key &; set /A keycode=%@retval% && echo
+if %filesize%>=%size% && if %fatonly%==0 && set key= && set keycode= &; echo -n $[0x0F]M$[0x07]enu$[0x07]=Enter $[0x0F]N$[0x07]o $[0x0F]Y$[0x07]es && pause --wait=180 --test-key &; set /A keycode=%@retval% && echo
+echo
+call :keycodes "%keycode%" "key"
+if %key%==zyx && echo && set key=M
+if %fatonly%==0 && if %key%==N && set key=M
+if %key%==M && endlocal && goto :eof
+if %fatonly%==1 && if %key%==O && if exist %target% && set key=Y && set fatonly=0
+if %fatonly%==1 && if %key%==C && if exist %target% && if %mode%==export && echo Give new Device/Path/Filename ($[0x0F].KBC$[0x07] only!), or give $[0x0F]Enter$[0x07] only to go back && set target=zyx &; set /p /l "target= > " && echo && echo
+if %fatonly%==1 && if %key%==C && if exist %target% && if %mode%==cnvHB2txt && echo Give new Device/Path/Filename, or give Enter only to go back && set target=zyx &; set /p "target= > " && echo && echo
+if %fatonly%==1 && if %key%==C && if "%target%"=="zyx" && echo && endlocal && goto :eof
+if %fatonly%==1 && if %key%==C && if %mode%==export && if not /i "%target:~-4,4%"==".kbc" && echo Wrong extension! && echo && endlocal && goto :eof
+if %key%==C && call Fn.4 &; set /a cursor=%@retval% &; set /a cursor=%cursor%/256
+if %key%==C && if %mode%==export && call :header "EXPORT TO %target%"
+if %key%==C && if %mode%==cnvHB2txt && call :header "CONVERT TO TEXT AND EXPORT TO %target%"
+if %key%==C && call Fn.5 0 %cursor%
+if %key%==C &; if exist target && set key=Y
+if not %key%==Y && echo && endlocal && goto :eof
+set /a success=1 &; errorcheck off
+if %fatonly%==1 && if exist %target% && echo $[0x0F]Abort:$[0x07] %target% already exists! && echo && endlocal && goto :eof
+if %fatonly%==1 && if %mode%==export && set size=%HISTBUFF%
+if %fatonly%==1 && if not exist %target% && if %success%==1 && set success=0 &; fat mkfile size=%size% %target% > nul &; echo -n > %target% && set /a success=%@retval%
+if %fatonly%==1 && if %success%==0 && echo Make %target% failed! && echo && endlocal && goto :eof
+if %fatonly%==1 && if exist %target% && cat --length=0 %target% > nul &; set /a filesize=%@retval%
+if %fatonly%==0 && ls %target% > nul && cat --length=0 %target% > nul &; set /a filesize=%@retval%
+#STILLNEEDED?also see 'is not a valid-00 terminated text...#if %fatonly%==0 && if %mode%==cnvHB2txt && set /a size=%size%+1
+if %fatonly%==0 && if %mode%==cnvHB2txt && set /a size=%size%+1
+if %mode%==export && if not %filesize%>=%HISTBUFF% && echo && echo Filesize of %target% is %filesize% Bytes: not <=%size% Bytes! && echo && endlocal && goto :eof
+if %mode%==export && if not %filesize%<=261632 && echo && echo Filesize of %target% is %filesize% Bytes: >=261632 Bytes! && echo && endlocal && goto :eof
+if %mode%==cnvHB2txt && if not %filesize%>=%size% && echo && echo %target% is not at least %size% bytes! && echo && endlocal && goto :eof
+if %fatonly%==0 && echo -n > %target%
+if %mode%==export && set success=0 && if %filesize%>=%HISTBUFF% && raw dd if=(md)%mdbase%+%BACKSECT% of=%target% bs=1 count=%HISTBUFF% > nul &; set /a success=%@retval%
+if %mode%==export && if %success%==0 && echo Writing History Buffer to %target% failed! && echo && endlocal && goto :eof
+if %mode%==cnvHB2txt && set success=0 && raw dd if=(md)%mdbase%+%BACKSECT% of=%target% bs=1 count=%size% > nul &; set /a success=%@retval%
+if %mode%==cnvHB2txt && if %success%==0 && echo Writing text-conversion of History Buffer to %target% failed! && echo && endlocal && goto :eof
+if %fatonly%==1 && if not %filesize%==%size% && set /a skip=%size%-1 &; if %mode%==cnvHB2txt && cat --skip=%skip% --locate=\x0A %target% > nul || endlocal && echo %target% is not a valid 0A-terminated text-file && goto :eof
+if %fatonly%==0 && if not %filesize%==%size% && set /a skip=%size%-2 &; if %mode%==cnvHB2txt && cat --skip=%skip% --locate=\x0A\x00 %target% > nul || endlocal && echo %target% is not a valid 00-terminated text-file && goto :eof
+echo -n > (md)%mdbase%+%BACKSECT%
+if %mode%==export && if %success%==0 && echo Writing History Buffer to %target% failed! && echo && endlocal && goto :eof
+if %mode%==export && if %success%==1 && echo Writing History Buffer to %target% succeeded! && if exist %target% && echo %target% exists with filesize %filesize% bytes
+if %mode%==cnvHB2txt && if %success%==0 && echo Writing text-conversion of History Buffer to %target% failed! && echo && endlocal && goto :eof
+if %mode%==cnvHB2txt && if %success%==1 && if exist %target% && echo Writing text-conversion of History Buffer to %target% succeeded!
+echo
+if %mode%==export && echo Start of History Buffer on %target% && cat --hex --length=0x30 %target%
+if %mode%==cnvHB2txt && cat --locate=\x0A --number=3 %target% > nul &; set /a catlength=%?%
+if %mode%==cnvHB2txt && echo Start of text of converted History Buffer: && echo && cat --length=%catlength% %target% && echo && echo ...........................................
+echo && endlocal && goto :eof
+
+:fatonly
+## check if device is FAT
+setlocal
+if not "%~1"=="" && set device=%~d1 && set path=%~p1 && set file=%~nx1
+if "%~1"=="" && endlocal && echo No device given! && set device=N && goto :eof
+if not %device%==N && vol %device% || endlocal && echo %device% does not exist! && set device=N && goto :eof
+set fatexist=1
+if not exist (bd)/fat && if not exist (bd)/grub/fat && if not exist %root%/fat && echo FAT is not available, if desired FAT should be available in (bd), (bd)/grub or %root% && set fatexist=0
+errorcheck off
+if %fatexist%==1 &; fat info %device% > nul && set fatonly=1 ! set fatonly=0
+errorcheck on
+if %fatexist%==0 && set fatonly=0
+endlocal && set device=%device% && set path=%path% && set file=%file% && set fatonly=%fatonly%
+goto :eof
+
+:fifo
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+echo -n > (md)0x220+1
+raw dd if=(md)0x0+%SECT% of=(md)0x220+1 bs=1 count=512 skip=%HISTADDR% > nul
+call :checkbuf "clean" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+set entrylen=0x0
+raw read %skip% &; set /A entrylen=%@retval% &; set entrylen=0x%entrylen:~-4,4%
+if %entrylen%==0x0 && echo History Buffer is empty && goto :eof
+set /A fifoseek=%skip%+%entrylen%-%HISTADDR% > nul
+echo -n > (md)%mdbase%+%BACKSECT%
+call :checkbuf "fifoHBuf" "(md)" "0x0" "%SECT%" "%HISTADDR%" "%HISTBUFF%" "%HISTEND%"
+set /A MEMADDR0=%mdbase% * 0x200
+set /A MEMEND0=%MEMADDR0%+%HISTBUFF%
+set /A mdbase1=%mdbase%+%BACKSECT%
+call :checkbuf "import" "(md)" "0x0" "%mdbase1%" "%MEMADDR0%" "%HISTBUFF%" "%MEMEND0%"
+if %numentry%==0 && echo $[0x0F]Abort:$[0x07] transformation History Buffer to FIFO not possible && endlocal && goto :eof
+if %success%==1 && call :delbuff
+set success=0
+call Fn.5 0 5
+raw dd if=(md)%mdbase%+%BACKSECT% of=(md)0x0+%SECT% bs=1 count=%HISTBUFF% skip=0x0 seek=%HISTADDR% > nul &; set /a success=%@retval%
+if %success%==0 && echo Tranformation of History Buffer to FIFO failed! && echo && endlocal && goto :eof
+if %success%==1 && call :cleanbuf "cleanfifo"
+if %success%==1 && echo Tranformation of History Buffer to FIFO succeeded!
+if %success%==1 && echo Start of copy of History Buffer $[0x0F]LIFO before && cat --hex --skip=0x0 --length=0x80 (md)0x220+1
+if %success%==1 && echo Start of actual History Buffer $[0x0F]FIFO$[0x0F] after && cat --hex --skip=%HISTADDR% --length=0x80 (md)0x0+%SECT% && echo
+echo -n > (md)0x220+1
+endlocal
+goto :eof
+
+:fifoHBuf
+set /A fifoseek=%fifoseek%-%entrylen%
+if not %fifoseek%<=%HISTBUFF% && goto :eof
+raw dd if=(md)0x0+%SECT% of=(md)%mdbase%+%BACKSECT% bs=1 count=%entrylen% skip=%skip% seek=%fifoseek% > nul &; set /a success=%@retval%
+if %fifoseek%==0x0 && goto :eof
+goto :eof
+
+:test
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "TEST"
+echo Start of History Buffer before test
+cat --hex --skip=%HISTADDR% --length=0x70 (md)0x0+%SECT% && echo
+set key=zyx
+echo Insert keys and view History Buffer or give $[0x0F]Enter$[0x07] to go back
+set /p "key= > " && echo
+if "%key%"=="zyx" && echo && goto :eof
+echo 
+echo Start of History Buffer after test
+cat --hex --skip=%HISTADDR% --length=0x70 (md)0x0+%SECT%
+echo
+goto :eof
+
+:write
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "WRITE"
+echo
+set var1=a
+set var2=ab
+set var7=1234567
+set var10=abcdefghij
+set var12=987654321012
+set "var25=color 0x17 0x18 0x17 0x17"
+set "var255=Variable with spaces blabla blabla blabla blabla blabla blabla blabla blabla blabla blabla Variable with spaces blabla blabla blabla blabla blabla blabla blabla blabla blabla blabla Variable with spaces blabla blublu blablablabla. Gauw nog even weggaan..!"
+set "var99=Dit is een klein verhaaltje van maar liefst honderd tekens, er is best een heleboel te zeggen hoor!"
+set "var63=Dit is een klein verhaaltje van maar liefst drieenzestig tekens"
+set key=zyx
+echo Test variables onboard: 'var1' 'var2' 'var7' 'var10' 'var12' 'var25' 'var255'; 'var99'; 'var63' - for external input give name of variable
+set /p "key=Give name of variable > " && echo
+if %key%==zyx && echo && echo && set variable=var
+if not %key%==zyx && echo && set variable=%key%
+call set "var=%%%variable%%%"
+if exist var && echo Variable to write to keyboard buffer: %variable%=$[0x0F]%var%$[0x07]
+if exist var && set "var=%var%" &; set /a varlena=%@retval%
+if exist var && set /a varlenp=%varlena%+1 &; echo Length of variable %variable%=$[0x0F]%varlena%$[0x07] chars && echo
+if not exist var && echo Variable $[0x0F]%variable%$[0x07] does not exist && echo && endlocal && goto :eof
+:numagain
+set morevars= && set varslen=
+set key=zyx && set keycode=
+echo -n $[0x0F]N$[0x07]umber of variables to write to History Buffer ($[0x0F]Enter=1$[0x07]) $[0x0F]M$[0x07]enu$[0x07] && pause --wait=180 --test-key &; set /A keycode=%@retval% &; call :keycodes "%keycode%" "key" && echo
+if %key%==M && echo && endlocal && goto :eof
+if %key%==zyx && set morevars=1
+if not exist morevars && set /a key=
+if not exist morevars && set /p "key= > " && echo
+if not exist morevars && set /a morevars=%key% &; if not %morevars%>=1 && endlocal && goto :eof
+set /a varslen=%morevars% * %varlena% + %morevars% - 1
+if %varslen%<=1599 && echo -n Number of variables to write=%morevars%, total number of chars=%varslen% && if %morevars%>=2 && echo -n , with spaces between
+echo && echo
+if not %varslen%<=1599 && echo Entry in History buffer is limited to 1599 chars! && goto :numagain && echo
+set key=zyx && set keycode=
+echo -n $[0x0F]W$[0x07]rite variable(Enter=Write) $[0x0F]C$[0x07]lean & Write $[0x0F]M$[0x07]enu && pause --wait=180 --test-key &; set /A keycode=%@retval% &; call :keycodes "%keycode%" "key" && echo
+if %key%==M && echo && endlocal && goto :eof
+if %key%==C && echo && call :delbuff
+if not %key%==W && if not %key%==zyx && if not %key%==C && echo && endlocal && goto :eof
+echo
+set varleno=0
+echo -n > (md)%mdbase%+%BACKSECT%
+raw write --offset=%varleno% (md)%mdbase%+%BACKSECT% \x0A\x0A > nul
+:morevars
+pause --wait=0 %var% >> (md)%mdbase%+%BACKSECT%
+set /a morevars=%morevars%-1
+if %morevars%>=1 && goto :morevars
+cat --locate=\x0A (md)%mdbase%+%BACKSECT% > nul &; set /A varlenw=%?%
+cat --skip=%varlenw% --locate=\x0A --replace=\x00 --number=1 (md)%mdbase%+%BACKSECT% > nul
+cat --locate=\x0A --replace=\x20 (md)%mdbase%+%BACKSECT% > nul
+set /A varlenw=%varlenw%+0x1
+#echo && pause --wait=0 Total length of entry in History-Buffer: %varlenw% (big endian)
+call :bufentry
+#pause --wait=0 Total length of entry in History-Buffer: %bufentry:~2,2% %bufentry:~6,2% (little endian) varleno=%varleno%
+raw write --offset=%varleno% (md)%mdbase%+%BACKSECT% %bufentry% > nul
+set /A bufflen=%HISTBUFF%-%varlenw%
+if %bufflen%>=1 && raw dd if=(md)0x0+%SECT% of=(md)%mdbase%+%BACKSECT% bs=1 count=%bufflen% skip=%HISTADDR% seek=%varlenw% > nul
+if %key%==C && echo
+call :add_hist
+#if not %key%==C && echo && cat --hex --skip=0x3EA4C0 --length=0x10 (md)0x0+0x1F63 && echo -------------------------------------------------------------------------------
+raw dd if=(md)%mdbase%+%BACKSECT% of=(md)0x0+%SECT% bs=1 count=%HISTBUFF% skip=0x0 seek=%HISTADDR% > nul
+cat --hex --skip=%HISTADDR% --length=0x30 (md)0x0+%SECT% && if %varlenw%>=0x11 && echo ||||||||
+set /A varskip=%HISTADDR%+%varlenw%-0x10-0x2
+if %varlenw%>=0x11 && cat --hex --skip=%varskip% --length=0x30 (md)0x0+%SECT% && echo
+endlocal
+goto :eof
+
+#org#:restoreV
+cat --locate=\x0A (md)0x3030+60 > nul |; pause no 0A found && goto :eof
+set skipvar=0x0
+call cat --locate=\x0A%variable%\x3D (md)0x3030+60 > nul &; set /A skipvar=%?%
+if %skipvar%=0x0 && set skipvar= && goto :eof
+set /A skipvar=%skipvar%+0x1
+cat --skip=%skipvar% (md)0x3030+60 | set
+set skipvar=
+goto :eof
+
+:bufentry
+if %varlenw%>=0x643 && set "bufentry=\x42\x06" && set /A varlenw=0x642
+if not %varlenw%<=0xFF && if %varlenw%<=0x642 && set "bufentry=\x%varlenw:~3,2%\x0%varlenw:~2,1%"
+if not %varlenw%<=0xF && if %varlenw%<=0xFF && set "bufentry=\x%varlenw:~2%\x00"
+if %varlenw%<=0xF && set "bufentry=\x0%varlenw:~2,1%\x00"
+goto :eof
+
+:NHistory
+setlocal && set *
+cat --skip=0x340000 --locate=\x00\x00\x00\x00\x00\x92\x3E\x00 (md)0x0+0x1D00 > nul &; set /A ZHistory=%?%
+set /A SHistory=%ZHistory%+0x8
+raw read %SHistory% > nul &; set /A read=%@retval%
+if not %read%==0x6 && set /A SHistory=%SHistory%+0x4 &; raw read %SHistory% > nul &; set /A read=%@retval%
+if %read%==0x6 && set /A NHistory=%SHistory%+0x10
+if not %read%==0x6 && set NHistory=
+if not exist NHistory && echo num_history not found && pause --wait=7
+raw read %NHistory% > nul &; set /a numhist=%@retval% &; set /A numHorg=%numhist%
+endlocal && set NHistory=%NHistory% && set numhist=%numhist% && set numHorg=%numHorg%
+goto :eof
+
+:NHistG4E
+setlocal && set *
+set /A SECT=*0x8380/0x200
+set /A skip=*0x8308
+cat --skip=%skip% --locate=\x00\xFF\x20\xA0 (md)0x0+%SECT% > nul &; set /A CMDLADDR=%?%+16
+set /A NHistory=%CMDLADDR%+28
+raw read %NHistory% > nul &; set /a numhist=%@retval% &; set /A numHorg=%numhist%
+read %CMDLADDR% > nul ;; set /A CMDLADDR=%@retval%
+set /A HISTADDR=%CMDLADDR%-0x8140+0x3460
+set HISTBUFF=0x4000
+#OKE#echo NHistory:
+#OKE#cat --hex --skip=%NHistory% --length=4 (md)0x0+%SECT% && echo
+#OKE#echo CMDLINE BUFFER:
+#OKE#cat --hex --skip=%CMDLADDR% --length=0x50 (md)0x0+%SECT% && echo
+#OKE#echo HISTORY BUFFER:
+#OKE#cat --hex --skip=%HISTADDR% --length=0x40 (md)0x0+%SECT% && echo
+#OKE#pause Key...
+endlocal && set NHistory=%NHistory% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set SECT=%SECT% && set HISTBUFF=%HISTBUFF% && set numhist=%numhist% && set numHorg=%numHorg%
+goto :eof
+
+:num_hist
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "NUM_HISTORY"
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+:next
+set next=zyx
+echo Insert some string to 'set' the num_history-complex
+set /p "next=Sync> " && echo && echo
+if "%next%"=="zyx" && echo && goto :next
+## WENV calling cmd doesn't alter the unused message-part of the command-line!
+#set "cmd=setlocal && echo WENV CALL && set a=a &; set && echo && endlocal"
+#/grub/WENV CALL %cmd%
+if exist @uefi && set /A sect=*0x8380/0x200 && set /A skip=*0x8308 &; cat --skip=%skip% --locate=\x00\x00\x00\x00\x00\xFF\x20\xA0 (md)0x0+%sect% > nul &; set /A ZHistory=%?%
+if not exist @uefi && cat --skip=0x340000 --locate=\x00\x00\x00\x00\x00\x92\x3E\x00 (md)0x0+0x1D00 > nul &; set /A ZHistory=%?%
+if not exist @uefi && set /A SHistory=%ZHistory%+0x8 ! set /A SHistory=%ZHistory%+0x20
+raw read %SHistory% > nul &; set /A read=%@retval%
+if not %read%==0x6 && set /A SHistory=%SHistory%+0x4 &; raw read %SHistory% > nul &; set /A read=%@retval%
+if %read%==0x6 && set /A NHistory=%SHistory%+0x10
+if not %read%==0x6 && set NHistory=
+if not exist @uefi && cat --hex --skip=%ZHistory% --length=0x20 (md)0x0+0x1D00 ! cat --hex --skip=%ZHistory% --length=0x40 (md)0x0+%SECT%
+if not exist NHistory && echo num_history not found && endlocal && goto :eof
+set /A offset=%NHistory%-%ZHistory%
+if not exist @uefi && if %offset%==0x18 && set /A lenbyte=%ZHistory%+0xC
+if not exist @uefi && if %offset%==0x28 && set /A lenbyte=%ZHistory%+0x8
+if exist @uefi && if %offset%==0x30 && set /A lenbyte=%ZHistory%+0x1C
+#MAYBE?#
+if exist @uefi && if %offset%==0x40 && set /A lenbyte=%ZHistory%+0x18
+#ORG#if %offset%==0x18 && set /A lenbyte=%ZHistory%+0xC
+#ORG#if %offset%==0x1C && set /A lenbyte=%ZHistory%+0x8
+echo Shows num_history, starting at "%NHistory%" and cmd-length at "%lenbyte%" && echo
+raw read %NHistory% > nul &; set /a numhist=%@retval%
+raw read %lenbyte% > nul &; set /a cmdlen=%@retval%
+if exist @uefi && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+%SECT% && if exist lenbyte && cat --hex --skip=%lenbyte% --length=0x3 (md)0x0+%SECT%
+if not exist @uefi && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+0x1D00 && cat --hex --skip=%lenbyte% --length=0x3 (md)0x0+0x1D00
+#org_lengthoflenbytemustbe3#cat --hex --skip=%NHistory% --length=0x4 (md)0x0+0x1D00 && cat --hex --skip=%lenbyte% --length=0x2 (md)0x0+0x1D00
+echo num_history is "%numhist%" entries and length of command-line is "%cmdlen%" chars && echo
+:nextcat
+set next=zyx
+## set /p & no message gives 00 on SHistory, with message below exactly 1Ah=23 message length. On +12=+Ch full cmdlen, including message-length. Default 06h could be "grub> " = 6 chars? 
+echo Insert some string to view the next num_history-value afterwards
+set /p "next=Type > " && echo && echo
+if "%next%"=="zyx" && echo && goto :nextcat
+if exist @uefi && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+%SECT% && if exist lenbyte && cat --hex --skip=%lenbyte% --length=0x3 (md)0x0+%SECT%
+if not exist @uefi && cat --hex --skip=%NHistory% --length=0x4 (md)0x0+0x1D00 && cat --hex --skip=%lenbyte% --length=0x3 (md)0x0+0x1D00
+#org_lengthoflenbytemustbe3#cat --hex --skip=%NHistory% --length=0x4 (md)0x0+0x1D00 && cat --hex --skip=%lenbyte% --length=0x2 (md)0x0+0x1D00
+raw read %NHistory% > nul &; set /a numhist=%@retval%
+raw read %lenbyte% > nul &; set /a cmdlen=%@retval%
+echo num_history is "%numhist%" entries and length of command-line is "%cmdlen%" chars && echo
+endlocal && set NHistory=%NHistory% && set numhist=%numhist%
+goto :eof
+
+:add_hist
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+set /A num_hist=0x0 && set numhist=0 && set histend=0x0
+if not exist NHistory && endlocal && echo $[0x0F]Abort:$[0x07] NHistory not found && pause --wait=7 && goto :eof
+raw read %NHistory% > nul &; set /A num_hist=%@retval% &; set /a numhist=%num_hist%
+#echo num_history found: %numhist%
+set /A skip=%HISTADDR% > nul && set numzero=0
+cat --skip=%skip% --locate=\x00 --length=%HISTBUFF% (md)0x0+%SECT% > nul &; set /a numzero=%@retval%
+if %numzero%==0 && endlocal && echo $[0x0F]Abort:$[0x07] History Buffer can not be processed! && pause --wait=7 && goto :eof
+cat --skip=%skip% --locate=\x00\x00\x00\x00 --length=%HISTBUFF% --number=1 (md)0x0+%SECT% > nul &; set /A histend=%?%
+if %histend%==0x0 && echo History Buffer is full!
+set /A num_hist=%num_hist%+0x1 && set /a numhist=%numhist%+1
+#echo num_history to write %numhist%
+raw write --bytes=2 %NHistory% %num_hist% > nul
+raw read %NHistory% > nul &; set /A num_hist=%@retval% &; set /a numhist=%num_hist%
+#echo num_history written: %numhist%
+#cat --hex --skip=%NHistory% --length=0x4 (md)0x0+0x1D00
+endlocal && set numhist=%numhist%
+goto :eof
+
+:exp2mem
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT%
+set success=0
+set /A mdbase2=2 * %BACKSECT% + %mdbase%
+echo -n > (md)%mdbase2%+%BACKSECT%
+raw dd if=(md)0x0+%SECT% of=(md)%mdbase2%+%BACKSECT% bs=1 count=%HISTBUFF% skip=%HISTADDR% > nul &; set /a success=%@retval%
+if %success%==0 && echo $[0x0F]Abort:$[0x07] Backup of History Buffer not possible && pause --wait=7 && endlocal && goto :eof
+endlocal
+goto :eof
+
+:mem2HBuf
+setlocal && set * && set mdbase=%mdbase% && set NHistory=%NHistory% && set SECT=%SECT% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set HISTBUFF=%HISTBUFF% && set HISTLAST=%HISTLAST% && set HISTEND=%HISTEND% && set BACKSECT=%BACKSECT% && set numHorg=%numHorg%
+set success=0
+set /A mdbase1=%mdbase%+%BACKSECT%
+echo -n > (md)%mdbase1%+%BACKSECT%
+raw dd if=(md)0x0+%SECT% of=(md)%mdbase1%+%BACKSECT% bs=1 count=%HISTBUFF% skip=%HISTADDR% > nul &; set /a success=%@retval%
+set compare=0
+set /A mdbase2=2 * %BACKSECT% + %mdbase%
+cmp (md)%mdbase2%+%BACKSECT% (md)%mdbase1%+%BACKSECT% > nul &; set /a compare=%@retval%
+if %compare%==1 && endlocal && set mode=Q && goto :eof
+clear
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "RESTORE"
+echo && echo $[0x0F]Do you want to restore original History Buffer before changes using HISTBUFF.G4B? && echo
+set key=zyx && set keycode= && echo -n $[0x0F]M$[0x07]enu($[0x07]Enter=Menu) $[0x0F]R$[0x07]estore $[0x0F]Q$[0x07]uit && pause --wait=180 --test-key &; set /A keycode=%@retval% &; call :keycodes "%keycode%" "key" && echo
+if %key%==zyx && set key=M
+if %key%==M && set mode=M
+if not %key%==R && echo && endlocal && set mode=%key% && clear && goto :eof
+set success=0
+raw dd if=(md)%mdbase2%+%BACKSECT% of=(md)0x0+%SECT% bs=1 count=%HISTBUFF% seek=%HISTADDR% > nul &; set /a success=%@retval%
+if %success%==0 && echo $[0x0F]Abort:$[0x07] Restoring History Buffer from backup not possibles && pause --wait=7 && endlocal && set mode=M && goto :eof
+raw write %NHistory% %numHorg% > nul
+raw read %NHistory% > nul &; set /A num_hist=%@retval%
+if not %num_hist%==%numHorg% && echo $[0x0F]Abort:$[0x07] Restoring num_hist from backup not possibles && pause --wait=7 && endlocal && set mode=M && goto :eof
+endlocal && set mode=%key% && set "message=Restoring History Buffer and num_hist from backup succeeded"
+goto :eof
+
+:header
+call Fn.5 0 1
+setlocal
+set message=
+if not "%~1"=="" && set "message=%~1"
+if not "%~2"=="" && set "message2=%~2"
+if exist message && set title=%message%
+if exist message2 && set "title=%message% %message2%"
+echo %textcol%-------------------------------------------------------------------------------
+set "title=%title%" &; set /a titlelen=%@retval%
+if %titlelen%<=79 && set /a offset=80-%titlelen%/2-1
+if %titlelen%<=79 &; call Fn.5 %offset% 1
+echo %title%
+endlocal
+goto :eof
+
+:keycodes
+setlocal && set *
+set /A keycode=%~1
+set keymenu=%~2
+if not exist keycode && endlocal && goto :eof
+if %keycode%==0x1 && set keyc=M
+if %keycode%==0x11B && set keyc=M
+if %keycode%==0x1C0D && set keyc=zyx
+set /A keycode=%keycode%&0xff
+if not %keycode%==0x41 if not %keycode%==0x61 || set keyc=A
+if not %keycode%==0x42 if not %keycode%==0x62 || set keyc=B
+if not %keycode%==0x43 if not %keycode%==0x63 || set keyc=C
+if not %keycode%==0x44 if not %keycode%==0x64 || set keyc=D
+if not %keycode%==0x45 if not %keycode%==0x65 || set keyc=E
+if not %keycode%==0x46 if not %keycode%==0x66 || set keyc=F
+if not %keycode%==0x47 if not %keycode%==0x67 || set keyc=G
+if not %keycode%==0x48 if not %keycode%==0x68 || set keyc=H
+if not %keycode%==0x49 if not %keycode%==0x69 || set keyc=I
+if not %keycode%==0x4A if not %keycode%==0x6A || set keyc=J
+if not %keycode%==0x4B if not %keycode%==0x6b || set keyc=K
+if not %keycode%==0x4C if not %keycode%==0x6C || set keyc=L
+if not %keycode%==0x4D if not %keycode%==0x6D || set keyc=M
+if not %keycode%==0x4E if not %keycode%==0x6E || set keyc=N
+if not %keycode%==0x4F if not %keycode%==0x6F || set keyc=O
+if not %keycode%==0x50 if not %keycode%==0x70 || set keyc=P
+if not %keycode%==0x51 if not %keycode%==0x71 || set keyc=Q
+if not %keycode%==0x52 if not %keycode%==0x72 || set keyc=R
+if not %keycode%==0x53 if not %keycode%==0x73 || set keyc=S
+if not %keycode%==0x54 if not %keycode%==0x74 || set keyc=T
+if not %keycode%==0x55 if not %keycode%==0x75 || set keyc=U
+if not %keycode%==0x56 if not %keycode%==0x76 || set keyc=V
+if not %keycode%==0x57 if not %keycode%==0x77 || set keyc=W
+if not %keycode%==0x58 if not %keycode%==0x78 || set keyc=X
+if not %keycode%==0x59 if not %keycode%==0x79 || set keyc=Y
+if not %keycode%==0x5A if not %keycode%==0x7A || set keyc=Z
+if %keycode%==0x0D && set keyc=zyx
+#BADonG4E#if %keycode%==0x1D && set keyc=zyx
+#if %keycode%==0x..... && set key=F1
+#if %keycode%==0x3920 && set key=SPACE
+#if %keycode%==0x1C0D && set key=ENTER
+#if %keycode%==0x11B && set key=ESCAPE
+endlocal && set %keymenu%=%keyc%
+goto :eof
+
+:know
+clear
+pager on
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "KNOW"
+echo HISTBUFF.G4B v0.1 (20230311),by deomsh (descriptions 'cooler' thanks to Wonko the Sane) && echo
+#ORG#echo KEYBUFF.G4B v0.1.5 (20212007),by deomsh (descriptions 'cooler' thanks to Wonko the Sane) && echo
+#echo Goal is testing if a variable written to the History Buffer can be 'called' afterwards on the command-line with the 'Arrow-up'-key && echo
+echo -e G4D: Command-line Buffer starts at 0x3E9200, ends at 0x3E983F. Total length=0x640\n(=1600) bytes - just inside (md)0x0+0x1F4C && echo
+echo -e G4E: Command-line Buffer starts 64.54 MB before max 3584 MB. Total length=0x640\n(=1600) bytes - inside number of sectors: depends on total memory && echo
+echo -e G4D: History Buffer starts at 0x3EA4C0, ends at 0x3EC3FF. Total length=0x1F40\n(=8000) bytes - just inside (md)0x0+0x1F63 && echo
+echo -e G4E: History Buffer starts 64.55 MB before max 3584 MB. Total length=0x4000\n(=16384) bytes - inside number of sectors: depends on total memory && echo
+echo Each entry in History Buffer starts with length of keys + 3, in hex. Strings in C are 00-terminated, a simple implementation of a LIFO (Last In First Out) stack && echo
+echo -e Maximum entry-length experimental tested is 0x642 = 1602 bytes. Without the 2 \x20\x20leading and 1 terminating byte: 1599 chars. Maximum usable length of a command \x20on command-line max 1535 (or 1536 chars?) && echo
+echo -e Maximum entry-length on the 'set /p' command-line experimental tested is 0x201 \x20(=513) bytes. Without the 2 leading and 1 terminating byte: 510 chars && echo
+echo If termination is 'not good' (?) sometimes a space + rhombus-symbol is displayed if entry in History Buffer is 'called' from the command-line && echo
+echo -e Seems safe to copy variables/ other content in memory with length up to 1535 \nchars. Second entry-byte is used too, plus terminating 00 for total length of \none entry. Reversed bytes (little endian) && echo
+clear
+pager on
+call Fn.5 0 0
+echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
+call :header "KNOW"
+echo -e If History Buffer is full, there is no end-mark visible inside the buffer, but \nafter writing to the command-line, last entry is NOT terminated with 00. \nEntry length is shorter in this case than according the two first bytes! Can be called with 'Arrow-up'-key && echo
+echo -e The value of num_history (address is NOT fixed) 'administrates' the 'active' \nHistory Buffer. This number is the highest possible number of 'calling' strings from the History Buffer with the 'Arrow-Up'-key && echo
+echo -e After the History Buffer is 'full', new commands on the command-line will still increase num_history. If full history is 'searched' with the 'Arrow-up'-key, \nnum_history will show the actual number of entries in the History Buffer && echo
+echo -e After reboot to MS-DOS & back to Grub4Dos command-line, SOMETIMES old History \nBuffer entries still visible, but always INACTIVE. Increasing num_history make \nthese entries ACTIVE; Menu-entry 'Sync' too && echo
+echo Explore History buffer, have fun.....! && echo
+echo $[0x0F]Press a key to continue... && pause
+clear
+:minihelp
+pager off
+call :header "DESCRIPTION"
+call Fn.5 0 2
+if exist message && echo $[0x0F]%message% && echo
+#echo Description of the Main Menu && echo
+#echo
+echo Press (not case-sensitive):
+echo V to view number of History entries and view the full History Buffer
+echo G to view the Command-line Buffer and the location on the used Grub4Dos-version
+echo N to view the location of num_hist on the used Grub4Dos-version
+echo T to test the function of the History Buffer and view the change
+echo W to write a variable to the History Buffer and view the change
+echo S to check for invalid entries in the History Buffer and synchronize num_hist
+echo D to empty the History Buffer and set num_hist to zero
+echo E to export the History Buffer to file (extension .KBC only)
+echo I to import a History Buffer from file (earlier saved - .KBC only)
+echo F to reverse order of all entries in the History Buffer and view changes
+echo C to convert all valid entries in the History Buffer to text and export to file
+echo K to get more information about the History Buffer
+echo Q to quit HISTBUF.G4B or restore History Buffer if wanted (after changes) && echo
+echo All Sub-menu's should be self-explaining or will provide instructions for use && echo
+goto :eof
+
+:eov
+clear
+debug msg=3
+endlocal && set NHistory=%NHistory% && set HISTADDR=%HISTADDR% && set CMDLADDR=%CMDLADDR% && set SECT=%SECT% && set HISTBUFF=%HISTBUFF%
