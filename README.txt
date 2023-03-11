@@ -19,6 +19,8 @@ K to get more information about the History Buffer
 Q to quit HISTBUF.G4B or restore History Buffer if wanted (after changes)
 All Sub-menu's should be self-explaining or will provide instructions for use
 
+Remark: exported variables are NHistory HISTADDR HISTBUFF CMDLADDR SECT
+
 Version History:
 V0.1
 First version for grub4efi too (successor of KEYBUFF.G4B - grub4dos only)
