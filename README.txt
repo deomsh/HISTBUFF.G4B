@@ -1,5 +1,6 @@
 HISTBUFF.G4B v0.1 (20230412)
-Grub4dos script to View, Check, Delete, Export, Import and Write to History Buffer (support for grud4efi is experimental)
+Grub4dos script to View, Check, Delete, Export, Import and Write to History Buffer
+(support for grud4efi is experimental)
 
 Use: HISTBUFF.G4B
 
@@ -19,9 +20,11 @@ K to get more information about the History Buffer
 Q to quit HISTBUFF.G4B or restore History Buffer if wanted (after changes)
 All Sub-menu's should be self-explaining or will provide instructions for use
 
-Remarks: exported variables are NHistory HISTADDR HISTBUFF CMDLADDR SECT
-         Tested on most recent version of grub4dos
-         Tested on most recent version of grub4efi (BOOTX64.EFI only)
+Remarks: Exported variables are NHistory HISTADDR HISTBUFF CMDLADDR SECT
+         Tested on many versions of grub4dos (most recent 20230306)
+         Tested on grub4efi version 20230224 (BOOTX64.EFI only)
+
+Tests for grub4efi on VBox 6.1, VMware Workstation 17 Player and ASUS P8H61 board (UEFI)
 
 Version History:
 V0.1
