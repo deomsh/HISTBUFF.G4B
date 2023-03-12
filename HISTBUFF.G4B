@@ -1,5 +1,5 @@
 !BAT
-## HISTBUFF.G4B v0.1 (20230311), by deomsh
+## HISTBUFF.G4B v0.1 (20230312), by deomsh
 setlocal
 debug 1
 debug msg=0
@@ -496,8 +496,16 @@ cat --skip=%skip% --locate=\x00\xFF\x20\xA0 (md)0x0+%SECT% > nul &; set /A CMDLA
 set /A NHistory=%CMDLADDR%+28
 raw read %NHistory% > nul &; set /a numhist=%@retval% &; set /A numHorg=%numhist%
 read %CMDLADDR% > nul ;; set /A CMDLADDR=%@retval%
-set /A HISTADDR=%CMDLADDR%-0x8140+0x3460
+set /A HISTADDR=%CMDLADDR%-0x4CE0
+set /A MDADDR=*0x8380
+set /A readhist=%MDADDR%-8
+set /A readcmdl=%MDADDR%+0x50
+read %readcmdl% > nul ;; set /A cmdladdr=%@retval%
+read %readhist% > nul ;; set /A histaddr=%@retval%
+if not %cmdladdr%==%CMDLADDR% && set numhist=
+if not %histaddr%==%HISTADDR% && set numhist=
 set HISTBUFF=0x4000
+set /A SECT=%CMDLADDR% + 0x640 / 0x200 + 1
 #OKE#echo NHistory:
 #OKE#cat --hex --skip=%NHistory% --length=4 (md)0x0+%SECT% && echo
 #OKE#echo CMDLINE BUFFER:
@@ -505,6 +513,7 @@ set HISTBUFF=0x4000
 #OKE#echo HISTORY BUFFER:
 #OKE#cat --hex --skip=%HISTADDR% --length=0x40 (md)0x0+%SECT% && echo
 #OKE#pause Key...
+set && pause $[0x0F]Press a Key to continue...
 endlocal && set NHistory=%NHistory% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set SECT=%SECT% && set HISTBUFF=%HISTBUFF% && set numhist=%numhist% && set numHorg=%numHorg%
 goto :eof
 
@@ -685,7 +694,7 @@ pager on
 call Fn.5 0 0
 echo $[0x08]V$[0x07]iew$[0x08] $[0x08]G$[0x07]rub $[0x08]N$[0x07]umhist $[0x08]T$[0x07]est $[0x08]W$[0x07]rite $[0x08]S$[0x07]ync $[0x08]D$[0x07]elete $[0x08]E$[0x07]xport $[0x08]I$[0x07]mport $[0x08]F$[0x07]ifo $[0x08]C$[0x07]onvert $[0x08]K$[0x07]now $[0x08]Q$[0x07]uit
 call :header "KNOW"
-echo HISTBUFF.G4B v0.1 (20230311),by deomsh (descriptions 'cooler' thanks to Wonko the Sane) && echo
+echo HISTBUFF.G4B v0.1 (20230312),by deomsh (descriptions 'cooler' thanks to Wonko the Sane) && echo
 #ORG#echo KEYBUFF.G4B v0.1.5 (20212007),by deomsh (descriptions 'cooler' thanks to Wonko the Sane) && echo
 #echo Goal is testing if a variable written to the History Buffer can be 'called' afterwards on the command-line with the 'Arrow-up'-key && echo
 echo -e G4D: Command-line Buffer starts at 0x3E9200, ends at 0x3E983F. Total length=0x640\n(=1600) bytes - just inside (md)0x0+0x1F4C && echo
