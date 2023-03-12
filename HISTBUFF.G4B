@@ -490,9 +490,9 @@ goto :eof
 
 :NHistG4E
 setlocal && set *
-set /A SECT=*0x8380/0x200
+set /A sect=*0x8380/0x200
 set /A skip=*0x8308
-cat --skip=%skip% --locate=\x00\xFF\x20\xA0 (md)0x0+%SECT% > nul &; set /A CMDLADDR=%?%+16
+cat --skip=%skip% --locate=\x00\xFF\x20\xA0 (md)0x0+%sect% > nul &; set /A CMDLADDR=%?%+16
 set /A NHistory=%CMDLADDR%+28
 raw read %NHistory% > nul &; set /a numhist=%@retval% &; set /A numHorg=%numhist%
 read %CMDLADDR% > nul ;; set /A CMDLADDR=%@retval%
@@ -506,6 +506,7 @@ if not %cmdladdr%==%CMDLADDR% && set numhist=
 if not %histaddr%==%HISTADDR% && set numhist=
 set HISTBUFF=0x4000
 set /A SECT=%CMDLADDR% + 0x640 / 0x200 + 1
+if not %sect%<=%SECT% && set SECT=%sect%
 #OKE#echo NHistory:
 #OKE#cat --hex --skip=%NHistory% --length=4 (md)0x0+%SECT% && echo
 #OKE#echo CMDLINE BUFFER:
@@ -513,7 +514,7 @@ set /A SECT=%CMDLADDR% + 0x640 / 0x200 + 1
 #OKE#echo HISTORY BUFFER:
 #OKE#cat --hex --skip=%HISTADDR% --length=0x40 (md)0x0+%SECT% && echo
 #OKE#pause Key...
-set && pause $[0x0F]Press a Key to continue...
+#OKE#set && pause $[0x0F]Press a Key to continue...
 endlocal && set NHistory=%NHistory% && set CMDLADDR=%CMDLADDR% && set HISTADDR=%HISTADDR% && set SECT=%SECT% && set HISTBUFF=%HISTBUFF% && set numhist=%numhist% && set numHorg=%numHorg%
 goto :eof
 
