@@ -1,5 +1,5 @@
 HISTBUFF.G4B v0.1 (20230412)
-Grub4dos script to View, Check, Delete, Export, Import and Write to History Buffer
+Grub4dos script to View, Check, Clean, Delete, Export, Import and Write to History Buffer
 (support for grud4efi is experimental)
 
 Use: HISTBUFF.G4B
